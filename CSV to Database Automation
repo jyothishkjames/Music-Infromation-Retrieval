@@ -1,0 +1,135 @@
+
+_author_ = Jyothish James
+
+import csv
+import sys
+import psycopg2
+import os
+
+
+conn = psycopg2.connect(database=" ", user=" ", password=" ", host=" ", port=" ")
+#psql -d mydb -U myuser
+print("Opened database successfully")
+
+cursor = conn.cursor()
+
+rows = []
+artist = []
+track = []
+date_split = []
+time_split = []
+rmid = []
+flag = 0
+mapping = []
+sid = []
+radio_name = []
+acronym = []
+file_name_mapping = []
+flag=0
+
+
+
+file_names = [filename.split('.')[0]
+              for  filename in os.listdir('/home/jyothish/Internship/MusicInformationRetrieval/input/radiomonitor/1601')
+                if filename.endswith('.csv')]
+
+
+sorted_file_names = sorted(file_names)
+#print(len(sorted_file_names))
+#print(sorted_file_names)
+for h in range(len(sorted_file_names)):
+    #print(sorted_file_names[h])
+    ifile = open ('/home/jyothish/Internship/MusicInformationRetrieval/input/radiomonitor/1601/'+sorted_file_names[h]+'.csv', 'rb')
+    for line in csv.reader(ifile): 
+        if not line: 
+            #empty_lines += 1
+            pass
+        else:
+            #print(line)
+            rows.append(line)
+            
+    for i in range(len(rows)-1):
+                date,time= (rows[i+1][0]).split("-")
+                #print(date)
+                #print(time)
+                date_split.append(date)
+                time_split.append(time)   
+                artist.append(filter(None,rows[i+1][1]))
+                track.append(filter(None,rows[i+1][2]))
+                rmid.append(filter(None,rows[i+1][4]))       
+            
+    ifile_mapping = open ('/home/jyothish/Internship/radio_mapping.csv', 'rb')
+    for line_mapping in csv.reader(ifile_mapping): 
+        if not line_mapping: 
+            #empty_lines += 1
+            pass
+        else:
+            #print(line)
+            mapping.append(line_mapping)   
+    
+    for i in range(len(mapping)):
+        
+        sid.append(mapping[i][0])   
+        radio_name.append(filter(None,mapping[i][1]))
+        acronym.append(filter(None,mapping[i][2]))
+        file_name_mapping.append(filter(None,mapping[i][3]))
+        
+    for k in range(len(file_name_mapping)):
+        
+        if(sorted_file_names[h]==file_name_mapping[k]):
+            station_id_mapped = sid[k]
+            radio_name_mapped = radio_name[k]
+            acronym_mapped = acronym[k]
+            #test3 = file_name_mapping[k]
+            #test = sorted_file_names[h]
+            #mapped_value = radio_name[k] 
+            
+            
+            #print(test3)
+            #print(mapped_value)
+            #print(test)
+            flag=1
+        
+        
+    if(flag==0):
+        print("No match found")
+        station_id_mapped = 0
+        radio_name_mapped = " "
+        acronym_mapped = " "
+
+            
+
+
+    
+    for j in range(len(rmid)):
+        
+        print(station_id_mapped)
+        print(radio_name_mapped)
+        print(acronym_mapped)
+        print(artist[j])
+        print(track[j])
+        print(date_split[j])
+        print(time_split[j])
+        print(rmid[j])
+        print("----------------")
+    
+        #query = "INSERT INTO public.radio_data(sid,radio_name,acronym,artist_name,track_name,time_stamp,rmid,flag) VALUES (%s,%s,%s,%s,%s,%s,%s,%s);"
+        #data = (station_id_mapped,radio_name_mapped,acronym_mapped,artist[j],track[j],date_split[j],time_split[j],rmid[j],flag)
+            
+        #cursor.execute(query,data)
+        #conn.commit()
+        
+    artist = []
+    track = []
+    date_split = []
+    time_split = []
+    rows = []
+    rmid = []
+    flag=0
+
+#print(station_id)
+#print(test2)
+#print(test3)
+#print(mapped_value)
+#print(test)
+
