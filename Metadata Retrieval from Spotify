@@ -1,0 +1,301 @@
+
+_author_ = Jyothish James
+
+
+from __future__ import print_function    
+from spotipy.oauth2 import SpotifyClientCredentials
+import spotipy
+import sys
+import csv
+import psycopg2
+import json
+import time
+from time import sleep
+
+
+
+global artist_name
+global track_name 
+global album_name 
+global genre
+global popularity 
+global followers 
+global total_albums 
+global data 
+global spotify_flag
+
+artist= " "
+genre = " "
+total_albums = 0
+json_artist = " "
+flag=0
+is_newcomer = " "
+is_regional = " "
+
+
+def get_artist(name):
+    
+    global spotify_flag
+    try:
+        results = sp.search(q='artist:' + name, type='artist')
+        items = results['artists']['items']
+        if len(items) > 0:
+            return items[0]
+        else:
+            return None
+    except Exception:
+        spotify_flag = 0
+        pass
+
+def show_album_tracks(album):
+    tracks = []
+    results = sp.album_tracks(album['id'])
+    tracks.extend(results['items'])
+    while results['next']:
+        results = sp.next(results)
+        tracks.extend(results['items'])
+    for track in tracks:
+        print('  ', track['name'])
+        print()
+        print(track)
+
+def show_artist_albums(id):
+    global total_albums 
+    global album_name
+    
+    try:
+        albums = []
+        results = sp.artist_albums(artist['id'], album_type='album')
+        #print(results['album_type'])
+        albums.extend(results['items'])
+        while results['next']:
+            results = sp.next(results)
+            #print("Look Here")
+            #print(results)
+            albums.extend(results['items'])
+            print(albums.extend(results['items']))
+            total_albums= len(albums) # Total Album to be stored in Database
+            #print("Total Albums: ", total_albums )
+        unique = set()  # skip duplicate albums
+        for album in albums:
+            name = album['name']
+            if not name in unique:  
+                #print(name)
+                album_name = name #Album Name to be stored in Database
+                #print("Album Name: ", album_name )
+                unique.add(name)
+                #show_album_tracks(album)
+    except Exception:
+        pass
+
+def show_artist(artist):
+    global followers
+    global popularity
+    global genre
+    global spotify_flag
+    try:
+    #if len(artist['followers']['total']) > 0:
+        followers = artist['followers']['total'] #Followers to be Stored in Database
+        #print("Followers: ", followers)
+    except Exception:
+        pass
+    try:
+    #if len(artist['popularity']) > 0:
+        popularity = artist['popularity'] #Popularity to be stored in Database
+        #print("Popularity: ", popularity)
+    except Exception:
+        pass
+    try:  
+        if len(artist['genres']) > 0:
+            genre = artist['genres'][0] #Genre to be stored in Database
+            #print("Genre: ", genre)
+    except Exception:
+        spotify_flag = 0
+        pass
+                           
+                
+                    
+                
+                    
+                         
+        
+    
+
+
+conn = psycopg2.connect(database=" ", user=" ", password=" ", host=" ", port=" ")
+#psql -d mydb -U myuser
+print("Opened database 1 successfully")
+
+cursor = conn.cursor()
+
+
+conn2 = psycopg2.connect(database=" ", user=" ", password=" ", host=" ", port=" ")
+print("Opened database 2 successfully")
+
+cursor2 = conn2.cursor()
+
+
+
+#artistlist = []
+#track = []
+#rows = []
+#r = 0
+
+r = 0     
+    
+values = []
+        
+query_1 = "select name,id,spotify from public.distinct_artist"
+
+cursor.execute(query_1)
+values = cursor.fetchall()
+
+
+
+
+client_credentials_manager = SpotifyClientCredentials()
+sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
+sp.trace=False
+
+client_id = ' '
+client_secret = ' '
+
+       
+#Artist Table
+        
+for j in range(len(values)-1):
+            spotify_flag = 1
+            artist_name = values[j][0] #Artist Name from Database
+            id_foregin_key = values[j][1] 
+            #print("Artist Name: ", artist_name )
+
+            artist = get_artist(artist_name)
+            show_artist(artist)
+            show_artist_albums(artist)
+            
+            if(artist!=" "):
+                flag=1
+            
+            if((total_albums <= 2) & (total_albums > 0)):
+                is_newcomer=1
+
+            elif(total_albums == 0):
+                is_newcomer= " "
+   
+            else:
+                is_newcomer=0
+           
+            #print("Total Albums: ", total_albums)
+            #print("Followers: ", followers)
+            #print("Popularity: ", popularity)
+            #print("Genre: ", genre)
+            #print("Json object", artist)
+
+            
+            
+        
+            json_artist = json.dumps(artist)
+            json_artist = json_artist
+            
+            #print(id_foregin_key,bool(spotify_flag))
+            try:
+                
+                if(values[j][2] == bool(0)):
+
+
+                    query1 = "UPDATE public.distinct_artist set spotify=%s where id=%s"
+                    data1 = (bool(spotify_flag),id_foregin_key)
+                    cursor2.execute(query1,data1)
+                    conn2.commit()
+
+                    if(is_newcomer == " "):
+
+                        query21 = "INSERT INTO public.artist_spotify(id,genre,no_albums,json) VALUES (%s,%s,%s,%s);"
+                        data21 = (id_foregin_key,genre,total_albums,json_artist)
+                        cursor2.execute(query21,data21)
+                        conn2.commit()
+
+                    else:
+
+                        query22 = "INSERT INTO public.artist_spotify(id,genre,no_albums,json,is_newcomer) VALUES (%s,%s,%s,%s,%s);"
+                        data22 = (id_foregin_key,genre,total_albums,json_artist,bool(is_newcomer))
+                        cursor2.execute(query22,data22)
+                        conn2.commit()
+                else:
+
+                    print("Metadata has been already retrieved for the artist")
+
+            except Exception:
+                    pass
+                
+            spotify_flag = 1
+            artist_name = " "
+            genre = " "
+            popularity = " "
+            followers = " "
+            total_albums =  0 
+            json_artist = " "
+            #json_artist = json.dumps(json_artist)
+            #json_artist = json_artist
+            is_newcomer = " "
+            is_regional = " "
+            #sleep(0.1)
+           
+    
+    
+"""
+
+                
+#Title Table                
+                
+for p in range(len(values2)-1):
+    
+            artist_name2 = values2[p+1][0]
+            print(artist_name2)
+            try:
+                results = sp.search(q=artist_name2, limit=50)
+            except Exception:
+                pass
+            tids = []
+            for i, t in enumerate(results['tracks']['items']):
+            #print(t['name'])
+                if((t['name'] == values2[p+1][1]) & (r==0)):
+                    r=1
+
+                    tids.append(t['uri'])
+
+                    start = time.time()
+                    features = sp.audio_features(tids)
+                    print("Audio Fingerprint :", features)
+                    delta = time.time() - start
+                
+                    feature_json = json.dumps(features)
+                
+            r=0
+            #print(results)
+            json_artist2 = json.dumps(results)
+            
+            if(values2[p+1][2]=="0"):
+            
+                
+                query4 = "UPDATE public.radio_monitor_data_distinct_title set spotify=%s where id=%s"
+                data4 = (spotify_flag,values2[p+1][3])
+
+                query1 = "INSERT INTO public.spotify_metadata_title(title,artist,fingerprint,json_object) VALUES (%s,%s,%s,%s);"
+                data1 = (values2[p+1][1],values2[p+1][0],feature_json,json_artist2)
+
+                cursor2.execute(query1,data1)
+                cursor2.execute(query4,data4)
+                conn2.commit()
+
+                feature_json = json.dumps("no fingerprint")
+                json_artist2 = json.dumps("no data")
+                sleep(0.1)
+            
+            else:
+                print("Metadata has been already retrieved for the title")
+                
+""" 
+
+
+
