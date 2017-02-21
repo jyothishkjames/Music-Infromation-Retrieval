@@ -1,0 +1,284 @@
+import musicbrainzngs
+import psycopg2
+import json
+import time
+import sys
+from time import sleep
+
+musicbrainzngs.set_useragent(" "," ")
+musicbrainzngs.auth(" "," ")
+
+conn = psycopg2.connect(database=" ", user=" ", password=" ", host=" ", port=" ")
+#psql -d mydb -U myuser
+print("Opened database 1 successfully")
+
+cursor = conn.cursor()
+
+values = []
+#json_object = json.dumps(json_object)
+
+query_1 = "select name,id,musicbrainz from public.distinct_artist"
+
+cursor.execute(query_1)
+values = cursor.fetchall()
+
+artist_json = " "
+artistid = " "
+name = " "
+area = " "
+country = " "
+genre = " "
+json_genre = json.dumps(genre) 
+life_span = " "
+begin_area = " "
+album_count = " "
+is_german= " "
+is_newcomer= " "
+is_regional= " "
+count =  " "
+v=0
+
+#query_temp = "UPDATE public.distinct_artist set musicbrainz=FALSE"
+#cursor.execute(query_temp)    
+#conn.commit()
+
+for j in range(len(values)-1):
+            musicbrainz_flag=1
+            count = 0
+            artist_name = values[j][0]
+            id_foregin_key = values[j][1]
+            #sleep(0.1)
+            try:
+                result = musicbrainzngs.search_artists(artist=artist_name)
+                artistid =result['artist-list'][0]['id']
+            except Exception:
+                musicbrainz_flag=0
+                pass
+            else:
+                try:
+                    artist = result['artist-list'][0]
+                except Exception:
+                    #musicbrainz_flag=0
+                    pass
+                try:
+                    name = result['artist-list'][0]['name']
+                    name = name.lower()
+                except Exception:
+                    #musicbrainz_flag=0
+                    pass
+                try:
+                    area = result['artist-list'][0]['area']['sort-name']
+                    area = area.lower()
+                except Exception:
+                    #musicbrainz_flag=0
+                    pass 
+                try:
+                    country = result['artist-list'][0]['country']
+                    country = country.lower()
+                except Exception:
+                    #musicbrainz_flag=0
+                    pass 
+                try:
+                    genre = result['artist-list'][0]['tag-list']
+                except Exception:
+                    #musicbrainz_flag=0
+                    pass 
+                try:
+                    life_span = result['artist-list'][0]['life-span']
+                except Exception:
+                    pass 
+
+                    begin_area = result['artist-list'][0]['begin-area']['sort-name']
+                except Exception:
+                    pass 
+                try:
+                    value = musicbrainzngs.get_artist_by_id(artistid, ["release-groups"],
+                    release_type=["album"])
+                    album_count = value['artist']['release-group-count']
+                    #print(len(value['artist']['release-group-list']))
+                    #print(value['artist']['release-group-list'])            
+                except Exception:
+                    #musicbrainz_flag=0
+                    pass
+                
+                for k in range(len(value['artist']['release-group-list'])):
+                      try:
+                        set_value = value['artist']['release-group-list'][k]['secondary-type-list']
+            
+                      except Exception:
+                        #print("count:" , count)
+                        count = count+1
+                        pass
+                #print("Final count :", count)
+                       
+                if(country == "de"):
+                    is_german=1
+                elif(country == " "):
+                    is_german= " "
+                else:
+                    is_german=0
+                    
+                if((count <= 2) & (count > 0)):
+                    is_newcomer=1
+                    #print("count:", count) 
+                    #print("is_newcomer", is_newcomer) 
+                elif(count == 0):
+                    is_newcomer= " "
+                    #print("count:", count) 
+                    #print("is_newcomer", is_newcomer) 
+                else:
+                    is_newcomer=0
+                    #print("count:", count) 
+                    #print("is_newcomer", is_newcomer) 
+
+                #print("Artist : ",name)
+                #print("Id : ",id_foregin_key)
+                #print("Service Id : ",artistid)
+                #print("Is German : ",is_german)
+                
+                flag=0
+                flag_value = " "
+                
+                if(genre != " "):
+                    for l in range(len(genre)):
+                        #print("Genre : ",genre[l]["count"])
+                        if(genre[l]["count"] > flag):
+                            flag = genre[l]["count"]
+                            flag_value = genre[l]["name"]
+                #print(flag,flag_value) 
+                #print("Genre :", flag_value)
+                #print("Country : ",country)
+                #print("Country ISO : ",country)
+                #print("Area : ",area)
+                #print("Album Count : ",count)
+                #print("Json : ",artist)
+
+
+                json_artist = json.dumps(artist)
+                
+                
+                #print(values[j][2])
+                #try:
+                    
+                if(values[j][2] == bool(0)):
+
+
+                        #print(bool(musicbrainz_flag))
+
+                        query1 = "UPDATE public.distinct_artist set musicbrainz=%s where id=%s"
+                        data1 = (bool(musicbrainz_flag),id_foregin_key)
+                        cursor.execute(query1,data1)
+
+                        if((is_newcomer == " ") or (is_german == " ")): 
+
+                             if((is_newcomer == " ") & (is_german == " ")):
+                                v=1
+                                print(is_newcomer,is_german)        
+                                query21 = "INSERT INTO public.artist_musicbrainz(id,service_id,genre,country,country_iso,area,no_albums,json) VALUES (%s,%s,%s,%s,%s,%s,%s,%s);"
+
+                                data21 = (id_foregin_key,artistid,flag_value,country,country,area,count,json_artist)
+                                cursor.execute(query21,data21)
+
+                             if((is_german == " ") & (v == 0)):                 
+                                print(is_german)    
+                                query22 = "INSERT INTO public.artist_musicbrainz(id,service_id,genre,country,country_iso,area,no_albums,is_newcomer,json) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s);"
+
+                                data22 = (id_foregin_key,artistid,flag_value,country,country,area,count,bool(is_newcomer),json_artist)
+                                cursor.execute(query22,data22)
+
+                             elif((is_newcomer == " ") & (v == 0)): 
+                                  print(is_newcomer)        
+                                  query23 = "INSERT INTO public.artist_musicbrainz(id,service_id,genre,country,country_iso,area,no_albums,is_german,json) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s);"
+
+                                  data23 = (id_foregin_key,artistid,flag_value,country,country,area,count,bool(is_german),json_artist)
+                                  cursor.execute(query23,data23)                                  
+ 
+                        else:
+                             print(is_newcomer)                       
+                             query24 = "INSERT INTO public.artist_musicbrainz(id,service_id,genre,country,country_iso,area,no_albums,is_german,is_newcomer,json) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s);"
+
+                             data24 = (id_foregin_key,artistid,flag_value,country,country,area,count,bool(is_german),bool(is_newcomer),json_artist)
+                             cursor.execute(query24,data24)
+
+                       
+
+                        conn.commit()
+                else:
+                        print("Metadata has been already retrieved for the artist")
+                       
+                #except Exception:
+                    #pass
+
+                
+                artist_json = " "
+                artistid = " "
+                name = " "
+                area = " "
+                country = " "
+                genre = " "
+                json_genre = json.dumps(genre) 
+                life_span = " "
+                begin_area = " "
+                album_count = " "
+                is_german=" "
+                is_newcomer= " "
+                is_regional= " "
+                count =  " "
+                v=0
+
+
+"""
+for k in range(len(values2)-1):
+    artist_name = values2[k+1][0]
+    title = values2[k+1][1]
+    print(artist_name)
+    print(title)
+    print("Next")
+    #sleep(0.1)
+
+
+    try:
+        result2 = musicbrainzngs.search_release_groups(title)
+    except Exception:
+            pass
+
+    else:
+        for i in range(len(result2["release-group-list"])):    
+            #print(result2["release-group-list"][i]["artist-credit"][0]["artist"]["name"])
+            if(result2["release-group-list"][i]["artist-credit"][0]["artist"]["name"]==artist_name):
+                  #print(result2["release-group-list"][i])
+                    json_object = result2["release-group-list"][i]["artist-credit"][0]["artist"]["name"]
+                    
+                    
+                    
+    musicbrainz_flag=1
+    
+    print(values2[k+1][2])
+    print(values2[k+1][3])
+    json_object = json.dumps(result2)
+            
+    if(values2[k+1][2]=="0"):
+                
+        query1 = "UPDATE public.radio_monitor_data_distinct_title set musicbrainz=%s where id=%s"
+        data1 = (musicbrainz_flag,values2[k+1][3])
+
+        query2 = "INSERT INTO public.musicbrainz_metadata_title(title,artist,json_object) VALUES (%s,%s,%s);"
+        data2 = (title,artist_name,json_object)
+
+        cursor.execute(query1,data1)
+        cursor.execute(query2,data2)
+        conn.commit()
+    else:
+        print("Metadata has been already retrieved for the artist")
+        
+json_object = "null"
+json_object = json.dumps(json_object)
+
+       
+        
+    #print(result['artist-list'][0]['area']['id']) 
+
+    #print(musicbrainzngs.search_areas("germany"))
+
+"""
+        
